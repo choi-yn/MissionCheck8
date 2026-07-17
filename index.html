@@ -117,6 +117,7 @@
     gap:clamp(10px, 1.5vw, 16px);
   }
   #photoInputWrap .photo-pick-btn{
+    position:relative; overflow:hidden;
     display:inline-flex; align-items:center; justify-content:center; gap:0.35em;
     flex:1 1 0; min-width:0; max-width:280px;
     padding:clamp(16px, 2.4vh, 28px) clamp(12px, 2vw, 24px);
@@ -126,6 +127,12 @@
     -webkit-tap-highlight-color:transparent; touch-action:manipulation;
   }
   #photoInputWrap .photo-pick-btn.camera-btn{ background:var(--green-dark); }
+  #photoInputWrap .photo-pick-btn > .photo-btn-icon,
+  #photoInputWrap .photo-pick-btn > .photo-btn-text{ position:relative; z-index:1; pointer-events:none; }
+  #photoInputWrap .photo-pick-btn .photo-file-overlay{
+    position:absolute; inset:0; width:100%; height:100%;
+    opacity:0.011; font-size:48px; cursor:pointer; z-index:2; border:0; padding:0; margin:0;
+  }
   #photoInputWrap .photo-btn-icon{
     font-size:1.35em; line-height:1;
   }
@@ -277,18 +284,20 @@
   </div>
 
   <div id="photoInputWrap">
-    <p id="photoHint">사진을 준비해 주세요</p>
+    <p id="photoHint">앨범 또는 카메라 버튼을 눌러 사진을 고르세요.</p>
     <div class="photo-btn-row">
-      <button type="button" class="photo-pick-btn" id="btnGallery" onclick="pickPhoto('gallery')">
-        <span class="photo-btn-icon" aria-hidden="true">🖼️</span>앨범에서 선택
-      </button>
-      <button type="button" class="photo-pick-btn camera-btn" id="btnCameraApp" onclick="pickPhoto('camera')">
-        <span class="photo-btn-icon" aria-hidden="true">📷</span>카메라로 촬영
-      </button>
+      <label class="photo-pick-btn" id="btnGallery">
+        <span class="photo-btn-icon" aria-hidden="true">🖼️</span>
+        <span class="photo-btn-text">앨범에서 선택</span>
+        <input type="file" id="inputGallery" class="photo-file-overlay" accept="image/*" onchange="onPhotoSelected(event)">
+      </label>
+      <label class="photo-pick-btn camera-btn" id="btnCameraApp">
+        <span class="photo-btn-icon" aria-hidden="true">📷</span>
+        <span class="photo-btn-text">카메라로 촬영</span>
+        <input type="file" id="inputCamera" class="photo-file-overlay" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+      </label>
     </div>
-    <!-- 브라우저용(숨김). APK 웹뷰에서는 App Inventor가 사진을 넘김 -->
-    <input type="file" id="inputGallery" accept="image/*" onchange="onPhotoSelected(event)" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;">
-    <input type="file" id="inputCamera" accept="image/*" capture="environment" onchange="onPhotoSelected(event)" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;">
+    <p id="photoDebug" style="margin-top:0.8vh;font-size:clamp(12px,1.5vh,16px);color:#888;"></p>
     <img id="photoPreview" alt="선택한 사진">
   </div>
 
@@ -424,66 +433,18 @@
     document.getElementById('nameInputWrap').style.display = m==='name' ? 'block' : 'none';
     document.getElementById('photoInputWrap').style.display = m==='photo' ? 'block' : 'none';
     if(m === 'photo'){
-      document.getElementById('photoHint').textContent = isAppWebView()
-        ? '버튼을 누르면 앱 앨범/카메라가 열려야 합니다. 안 열리면 App Inventor 블록 연결이 필요합니다.'
-        : '버튼을 눌러 사진을 고르세요.';
+      document.getElementById('photoHint').textContent = '앨범 또는 카메라 버튼을 눌러 사진을 고르세요.';
+      setPhotoDebug('');
     }
     checkReady();
   }
 
-  function isAppWebView(){
-    const ua = navigator.userAgent || '';
-    const q = location.search || '';
-    return /; wv\)/i.test(ua)
-      || /AppInventor/i.test(ua)
-      || /Version\/[\d.]+.*Chrome\/[.0-9]* Mobile/i.test(ua) && /;\s*wv\)/.test(ua)
-      || q.indexOf('appinventor=1') >= 0
-      || typeof window.AppInventor !== 'undefined';
+  function setPhotoDebug(text){
+    const el = document.getElementById('photoDebug');
+    if(el) el.textContent = text || '';
   }
 
-  function hasAppInventorBridge(){
-    return !!(window.AppInventor
-      && (typeof window.AppInventor.setWebViewString === 'function'
-        || typeof window.AppInventor.getWebViewString === 'function'));
-  }
-
-  function pickPhoto(kind){
-    const hint = document.getElementById('photoHint');
-    const msg = kind === 'camera' ? 'NEED_CAMERA' : 'NEED_GALLERY';
-    let sentToApp = false;
-
-    // 1) App Inventor APK/Companion → 네이티브로 요청 (여기가 APK에서 유일한 정상 경로)
-    try{
-      if(hasAppInventorBridge()){
-        window.AppInventor.setWebViewString(msg);
-        sentToApp = true;
-        hint.textContent = kind === 'camera'
-          ? '앱 카메라 요청을 보냈어요…'
-          : '앱 앨범 요청을 보냈어요…';
-      }
-    }catch(e){}
-
-    // 2) 브라우저(PC/크롬) 폴백
-    if(!isAppWebView() || !sentToApp){
-      const input = document.getElementById(kind === 'camera' ? 'inputCamera' : 'inputGallery');
-      try{ if(input) input.click(); }catch(e2){}
-    }
-
-    // 3) APK인데 블록이 없으면 안내
-    if(isAppWebView() || location.search.indexOf('appinventor=1') >= 0){
-      setTimeout(function(){
-        const preview = document.getElementById('photoPreview');
-        const gotPhoto = preview && preview.style.display === 'block' && preview.src;
-        if(gotPhoto) return;
-        if(!hasAppInventorBridge()){
-          hint.innerHTML = '⚠️ 이 화면은 App Inventor 웹뷰입니다. HTML만으로는 앨범/카메라가 열리지 않아요.<br>아래 App Inventor 블록을 꼭 연결하세요.';
-          alert('App Inventor에서 ImagePicker/Camera 블록을 연결해야 앨범·촬영이 됩니다.\n(HTML 파일 선택은 웹뷰에서 막혀 있습니다.)');
-          return;
-        }
-        hint.innerHTML = '아직 사진이 안 왔어요. App Inventor에서 WebViewString이 <b>' + msg + '</b> 일 때 ImagePicker/Camera를 여는 블록이 있는지 확인하세요.';
-      }, 1800);
-    }
-  }
+  // WebViewExtra: label → file input 만 사용 (NEED_GALLERY 신호 보내지 않음)
 
   // App Inventor: setMissionPhoto(...) 또는 WebViewString = PHOTO:...
   function setMissionPhoto(dataUrl){
@@ -552,6 +513,7 @@
       if(s.indexOf('PHOTO:') === 0){
         lastAiPhotoString = s;
         const payload = s.slice(6);
+        setPhotoDebug('PHOTO 수신: ' + payload.length + '자');
         document.getElementById('photoHint').textContent = '사진 수신함 (' + payload.length + '자). 표시 중…';
         if(payload.length < 100){
           document.getElementById('photoHint').textContent = '사진 데이터가 너무 짧아요 (' + payload.length + '자). Base64 변환/전달을 확인하세요.';
@@ -561,9 +523,12 @@
         try{ window.AppInventor.setWebViewString(''); }catch(e){}
       } else if(s.indexOf('data:image') === 0){
         lastAiPhotoString = s;
+        setPhotoDebug('data:image 수신: ' + s.length + '자');
         document.getElementById('photoHint').textContent = '사진 수신함 (' + s.length + '자). 표시 중…';
         setMissionPhoto(s);
         try{ window.AppInventor.setWebViewString(''); }catch(e){}
+      } else if(s.indexOf('NEED_') !== 0){
+        setPhotoDebug('웹뷰스트링: ' + s.slice(0, 40) + (s.length > 40 ? '…' : '') + ' (' + s.length + '자)');
       }
     }catch(e){}
   }, 250);
