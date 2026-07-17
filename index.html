@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>미션 체크 - 튼튼 영양 대장상</title>
+<style>
+  :root{
+    --green:#4CAF7D;
+    --green-dark:#2E7D53;
+    --cream:#FFF8EC;
+    --gold:#FFC94A;
+    --ink:#3A2E26;
+    --gray:#D9D2C6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Pretendard","Noto Sans KR",sans-serif;
+    background:var(--cream); color:var(--ink);
+    min-height:100vh; min-height:100dvh;
+    padding:3vh 4vw;
+  }
+  .screen{ display:none; width:min(920px, 92vw); margin:0 auto; }
+  .screen.active{ display:block; }
+  #screenList.active{
+    display:flex; flex-direction:column;
+    height:calc(100dvh - 6vh); max-height:calc(100dvh - 6vh);
+  }
+
+  h1{
+    text-align:center; color:var(--green-dark); flex-shrink:0;
+    font-size:clamp(28px, 4vh, 42px); margin-bottom:clamp(10px, 1.6vh, 20px);
+  }
+
+  .mission-list{
+    flex:1 1 auto; min-height:0; overflow-y:auto;
+    display:flex; flex-direction:column; gap:clamp(6px, 1vh, 12px);
+    justify-content:center;
+  }
+  .mission-card{
+    display:flex; align-items:center; gap:clamp(10px, 2vw, 20px);
+    background:#fff; border-radius:14px;
+    padding:clamp(6px, 1vh, 12px) clamp(12px, 2.5vw, 24px);
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+    border:3px solid transparent; transition:.3s;
+    flex:0 0 auto;
+  }
+  .mission-card.checked{ border-color:var(--green); background:#F1FBF5; }
+  /* 캐릭터 칸 너비를 통일해서 질문/재생버튼 시작 위치를 맞춤 */
+  .char-slot{
+    width:clamp(78px, 12vw, 108px); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mission-card img.char{
+    width:clamp(66px, 10.5vw, 96px); height:auto; display:block;
+  }
+  /* 에티는 원본이 더 길어서 높이 맞추고, 살짝 오른쪽으로 */
+  .mission-card img.char-eti{
+    width:clamp(45px, 7vw, 65px);
+    margin-left:clamp(9px, 1.5vw, 18px);
+  }
+  .mission-body{ flex:1; min-width:0; }
+  .question-row{
+    display:flex; align-items:center; gap:clamp(10px, 1.5vw, 18px);
+    width:100%;
+  }
+  .question-row p{
+    font-size:clamp(23px, 3.3vh, 33px); font-weight:700;
+    line-height:1.35; margin:0; flex:1; min-width:0;
+  }
+  .play-btn{
+    border:none; background:var(--green); color:#fff; border-radius:50%;
+    width:clamp(54px, 6.8vh, 72px); height:clamp(54px, 6.8vh, 72px);
+    font-size:clamp(21px, 2.7vh, 27px); cursor:pointer; flex-shrink:0;
+  }
+  .check-label{
+    display:flex; align-items:center; justify-content:flex-end; gap:10px;
+    cursor:pointer; font-weight:700;
+    font-size:clamp(23px, 3vh, 30px); white-space:nowrap; flex-shrink:0;
+    width:clamp(108px, 13.5vw, 144px);
+  }
+  .check-label input{
+    width:clamp(27px, 3.6vh, 39px); height:clamp(27px, 3.6vh, 39px);
+    accent-color:var(--green); cursor:pointer; flex-shrink:0;
+  }
+
+  #completeBtn{
+    width:100%; flex-shrink:0; border:none; border-radius:16px;
+    padding:clamp(16px, 2.2vh, 28px) 16px; margin-top:clamp(8px, 1.2vh, 16px);
+    background:var(--gray); color:#fff;
+    font-size:clamp(23px, 3.3vh, 33px); font-weight:800;
+    cursor:not-allowed; transition:.3s;
+  }
+  #completeBtn.ready{ background:var(--green); cursor:pointer; }
+
+  .choice-row{ display:flex; gap:4vw; margin:clamp(24px, 4vh, 48px) 0; }
+  .choice-btn{
+    flex:1; padding:clamp(28px, 4.5vh, 56px) 2vw;
+    border:3px solid var(--green); border-radius:20px;
+    background:#fff; font-size:clamp(26px, 3.6vh, 36px); font-weight:800;
+    color:var(--green-dark); cursor:pointer; line-height:1.35;
+  }
+  .choice-btn .choice-icon{
+    display:block; line-height:1;
+    font-size:2.5em;
+    margin-bottom:0.2em;
+  }
+  .choice-btn.selected{ background:var(--green); color:#fff; }
+  #nameInputWrap, #photoInputWrap{ display:none; margin-top:2vh; text-align:center; }
+  #nameInputWrap input{
+    width:100%; padding:clamp(14px, 2vh, 24px);
+    font-size:clamp(24px, 3.6vh, 34px); border:2px solid var(--gray);
+    border-radius:12px; text-align:center;
+  }
+  #photoInputWrap .photo-btn-row{
+    display:flex; flex-wrap:nowrap; justify-content:center; align-items:stretch;
+    gap:clamp(10px, 1.5vw, 16px);
+  }
+  #photoInputWrap .photo-pick-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:0.35em;
+    flex:1 1 0; min-width:0; max-width:280px;
+    padding:clamp(16px, 2.4vh, 28px) clamp(12px, 2vw, 24px);
+    font-size:clamp(22px, 3.2vh, 32px); font-weight:800;
+    border:none; border-radius:16px; line-height:1.25; text-align:center;
+    background:var(--green); color:#fff; cursor:pointer;
+    -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+  }
+  #photoInputWrap .photo-pick-btn.camera-btn{ background:var(--green-dark); }
+  #photoInputWrap .photo-btn-icon{
+    font-size:1.35em; line-height:1;
+  }
+  #photoInputWrap .photo-field{
+    width:min(100%, 520px); margin:0 auto 1.4vh; text-align:left;
+  }
+  #photoInputWrap .photo-field strong{
+    display:flex; align-items:center; gap:0.35em; margin-bottom:0.5vh;
+    font-size:clamp(18px, 2.4vh, 26px); color:var(--green-dark);
+  }
+  #photoInputWrap .photo-field strong .photo-btn-icon{
+    font-size:1.4em; line-height:1;
+  }
+  #photoInputWrap .visible-file{
+    display:block; width:100%;
+    font-size:clamp(16px, 2.2vh, 22px);
+    padding:clamp(12px, 1.8vh, 18px);
+    border:2px solid var(--green); border-radius:12px;
+    background:#fff; color:var(--ink);
+  }
+  #photoHint{
+    margin:0 auto 1.2vh; line-height:1.45;
+    font-size:clamp(14px, 1.8vh, 18px); color:#666; max-width:640px;
+  }
+  #photoPreview{
+    width:clamp(120px, 24vh, 200px); height:clamp(120px, 24vh, 200px);
+    border-radius:50%; object-fit:cover;
+    margin:2vh auto; display:none; border:4px solid var(--gold);
+  }
+  #goCertBtn{
+    width:100%; padding:clamp(16px, 2.4vh, 28px) 16px; margin-top:3vh;
+    border:none; border-radius:16px;
+    background:var(--gray); color:#fff;
+    font-size:clamp(24px, 3.6vh, 34px); font-weight:800; cursor:not-allowed;
+  }
+  #goCertBtn.ready{ background:var(--gold); color:var(--ink); cursor:pointer; }
+
+  #certOverlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+    align-items:center; justify-content:center; z-index:50; flex-direction:column;
+    padding:2vh 2vw; gap:1.2vh;
+  }
+  #certOverlay.active{ display:flex; }
+  /* 상장 비율 1768×1288 — 태블릿 가로 화면에 맞춰 맞춤 */
+  .cert-wrap{
+    position:relative;
+    width:min(92vw, calc(72vh * 1768 / 1288));
+    max-height:72vh;
+  }
+  .cert-flat{
+    width:100%; height:auto; max-height:72vh;
+    object-fit:contain; border-radius:12px; display:block;
+    box-shadow:0 8px 24px rgba(0,0,0,.3);
+  }
+  .cert-actions{
+    display:flex; align-items:center; justify-content:center; flex-wrap:wrap;
+    gap:clamp(10px, 2vw, 20px);
+  }
+  #saveHint{
+    color:#fff; font-size:clamp(14px, 2vh, 22px); text-align:center; font-weight:700;
+  }
+  .retryCert, .closeCert{
+    border:none; border-radius:24px; font-weight:800; cursor:pointer;
+    padding:clamp(14px, 2vh, 22px) clamp(22px, 3.5vw, 36px);
+    font-size:clamp(20px, 2.8vh, 28px);
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .retryCert{ background:var(--gold); color:var(--ink); }
+  .retryCert .retry-icon{
+    font-size:1.2em; line-height:1; font-weight:700;
+  }
+  .closeCert{ background:#fff; color:var(--ink); font-weight:700; }
+  .confetti{ position:fixed; inset:0; overflow:hidden; z-index:40; pointer-events:none; }
+  .confetti span{
+    position:absolute; top:-10%; width:1.4vh; height:1.4vh; opacity:.9;
+    animation: fall 2.4s linear infinite;
+  }
+  @keyframes fall{ to{ transform:translateY(120vh) rotate(360deg); opacity:0; } }
+
+  @media (orientation: landscape){
+    body{ padding:2vh 3vw; }
+    #screenList.active{ height:calc(100dvh - 4vh); max-height:calc(100dvh - 4vh); }
+    .choice-row{ margin:clamp(16px, 2.5vh, 32px) 0; }
+    .choice-btn{
+      padding:clamp(20px, 3.2vh, 40px) 2vw;
+      font-size:clamp(24px, 3.4vh, 34px);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen active" id="screenList">
+  <h1>미션 체크 ✅</h1>
+
+  <div class="mission-list">
+    <div class="mission-card" id="card1">
+      <div class="char-slot">
+        <img class="char" src="image/헬씨.png" alt="헬씨">
+      </div>
+      <div class="mission-body">
+        <div class="question-row">
+          <button class="play-btn" onclick="playAudio('sound/미션체크 문항1.mp3', this)">▶</button>
+          <p>몸에 좋은 음식이 무엇인지 알고, 골고루 먹을 수 있나요?</p>
+          <label class="check-label"><input type="checkbox" onchange="onCheck('card1')"> 체크!</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mission-card" id="card2">
+      <div class="char-slot">
+        <img class="char char-eti" src="image/에티.png" alt="에티">
+      </div>
+      <div class="mission-body">
+        <div class="question-row">
+          <button class="play-btn" onclick="playAudio('sound/미션체크 문항2.mp3', this)">▶</button>
+          <p>바른 식사예절을 알고 지킬 수 있나요?</p>
+          <label class="check-label"><input type="checkbox" onchange="onCheck('card2')"> 체크!</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mission-card" id="card3">
+      <div class="char-slot">
+        <img class="char" src="image/세이피.png" alt="세이피">
+      </div>
+      <div class="mission-body">
+        <div class="question-row">
+          <button class="play-btn" onclick="playAudio('sound/미션체크 문항3.mp3', this)">▶</button>
+          <p>손 씻기와 식품 안전 약속을 잘 지킬 수 있나요?</p>
+          <label class="check-label"><input type="checkbox" onchange="onCheck('card3')"> 체크!</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="completeBtn" disabled onclick="goToChoice()">모든 활동을 한 후 체크하세요!</button>
+</div>
+
+<div class="screen" id="screenChoice">
+  <h1>상장에 무엇을 넣을까요?</h1>
+  <div class="choice-row">
+    <button class="choice-btn" id="btnName" onclick="selectMode('name')"><span class="choice-icon">✏️</span>이름 쓸래요</button>
+    <button class="choice-btn" id="btnPhoto" onclick="selectMode('photo')"><span class="choice-icon">📷</span>사진 넣을래요</button>
+  </div>
+
+  <div id="nameInputWrap">
+    <input type="text" id="nameInput" placeholder="이름을 입력하세요" maxlength="10" oninput="checkReady()">
+  </div>
+
+  <div id="photoInputWrap">
+    <p id="photoHint">사진을 준비해 주세요</p>
+    <div class="photo-btn-row">
+      <button type="button" class="photo-pick-btn" id="btnGallery" onclick="pickPhoto('gallery')">
+        <span class="photo-btn-icon" aria-hidden="true">🖼️</span>앨범에서 선택
+      </button>
+      <button type="button" class="photo-pick-btn camera-btn" id="btnCameraApp" onclick="pickPhoto('camera')">
+        <span class="photo-btn-icon" aria-hidden="true">📷</span>카메라로 촬영
+      </button>
+    </div>
+    <!-- 브라우저용(숨김). APK 웹뷰에서는 App Inventor가 사진을 넘김 -->
+    <input type="file" id="inputGallery" accept="image/*" onchange="onPhotoSelected(event)" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;">
+    <input type="file" id="inputCamera" accept="image/*" capture="environment" onchange="onPhotoSelected(event)" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;">
+    <img id="photoPreview" alt="선택한 사진">
+  </div>
+
+  <button id="goCertBtn" disabled onclick="showCertificate()">상장 완성하기 🎉</button>
+</div>
+
+<div id="certOverlay">
+  <div class="confetti" id="confettiEl"></div>
+  <div class="cert-wrap" id="certWrap">
+    <img class="cert-flat" id="certFlatImg" alt="튼튼 영양 대장상">
+  </div>
+  <div class="cert-actions">
+    <div id="saveHint">이미지를 길게 눌러 갤러리에 저장하세요 📥</div>
+    <button class="retryCert" onclick="restartApp()"><span class="retry-icon" aria-hidden="true">↻</span>다시하기</button>
+    <button class="closeCert" onclick="closeCert()">✕ 닫기</button>
+  </div>
+</div>
+<canvas id="certCanvas" style="display:none;"></canvas>
+
+<script>
+  let mode = null;
+  let currentAudio = null;
+  let audioCtx = null;
+
+  function playAudio(src, btn){
+    if(currentAudio){
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    const a = new Audio(encodeURI(src));
+    currentAudio = a;
+    if(btn){
+      btn.textContent = '⏸';
+      a.onended = function(){ btn.textContent = '▶'; };
+    }
+    a.play().catch(err=>{
+      if(btn) btn.textContent = '▶';
+      alert('오디오를 재생할 수 없어요.\n경로를 확인해주세요: ' + src + '\n(' + err.message + ')');
+    });
+  }
+
+  function ensureAudioCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(ctx, {freq, start, dur, type, vol, detune}){
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    if(detune) osc.detune.value = detune;
+    filter.type = 'lowpass';
+    filter.frequency.value = Math.min(4200, freq * 4);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(vol, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(vol * 0.55, start + dur * 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.02);
+  }
+
+  function playCertFanfare(){
+    try{
+      const ctx = ensureAudioCtx();
+      const now = ctx.currentTime;
+      // 밝은 종소리 느낌의 축하 멜로디 (C major)
+      const melody = [
+        {f:523.25, t:0,    d:0.22, v:0.14}, // C5
+        {f:659.25, t:0.16, d:0.22, v:0.15}, // E5
+        {f:783.99, t:0.32, d:0.22, v:0.16}, // G5
+        {f:1046.5, t:0.50, d:0.55, v:0.18}  // C6
+      ];
+      melody.forEach(n=>{
+        playTone(ctx, {freq:n.f, start:now+n.t, dur:n.d, type:'sine', vol:n.v});
+        playTone(ctx, {freq:n.f*2, start:now+n.t, dur:n.d*0.7, type:'triangle', vol:n.v*0.28});
+      });
+      // 마지막 화음 (밝고 풍성하게)
+      const chord = [523.25, 659.25, 783.99, 1046.5];
+      chord.forEach((f,i)=>{
+        playTone(ctx, {freq:f, start:now+0.52, dur:0.7, type:'sine', vol:0.08, detune:i*2});
+        playTone(ctx, {freq:f*2, start:now+0.52, dur:0.45, type:'triangle', vol:0.035});
+      });
+      // 반짝이는 글리터 톤
+      const sparkles = [1318.5, 1568, 1760, 2093];
+      sparkles.forEach((f,i)=>{
+        playTone(ctx, {
+          freq:f, start:now+0.55+i*0.07, dur:0.18,
+          type:'sine', vol:0.045
+        });
+      });
+    }catch(e){}
+  }
+
+  function playCheckClick(){
+    try{
+      const ctx = ensureAudioCtx();
+      const now = ctx.currentTime;
+      // 짧은 클릭/틱 소리
+      playTone(ctx, {freq:1200, start:now, dur:0.04, type:'square', vol:0.06});
+      playTone(ctx, {freq:1800, start:now+0.02, dur:0.05, type:'sine', vol:0.05});
+    }catch(e){}
+  }
+
+  function onCheck(id){
+    playCheckClick();
+    const card = document.getElementById(id);
+    const checked = card.querySelector('input').checked;
+    card.classList.toggle('checked', checked);
+    const allChecked = ['card1','card2','card3'].every(cid=>{
+      return document.querySelector('#'+cid+' input').checked;
+    });
+    const btn = document.getElementById('completeBtn');
+    btn.disabled = !allChecked;
+    btn.classList.toggle('ready', allChecked);
+    btn.textContent = allChecked ? '튼튼 영양 대장상 받으러 가기 🏅' : '모든 활동을 한 후 체크하세요!';
+  }
+
+  function goToChoice(){
+    document.getElementById('screenList').classList.remove('active');
+    document.getElementById('screenChoice').classList.add('active');
+  }
+
+  function selectMode(m){
+    mode = m;
+    document.getElementById('btnName').classList.toggle('selected', m==='name');
+    document.getElementById('btnPhoto').classList.toggle('selected', m==='photo');
+    document.getElementById('nameInputWrap').style.display = m==='name' ? 'block' : 'none';
+    document.getElementById('photoInputWrap').style.display = m==='photo' ? 'block' : 'none';
+    if(m === 'photo'){
+      document.getElementById('photoHint').textContent = isAppWebView()
+        ? '버튼을 누르면 앱 앨범/카메라가 열려야 합니다. 안 열리면 App Inventor 블록 연결이 필요합니다.'
+        : '버튼을 눌러 사진을 고르세요.';
+    }
+    checkReady();
+  }
+
+  function isAppWebView(){
+    const ua = navigator.userAgent || '';
+    const q = location.search || '';
+    return /; wv\)/i.test(ua)
+      || /AppInventor/i.test(ua)
+      || /Version\/[\d.]+.*Chrome\/[.0-9]* Mobile/i.test(ua) && /;\s*wv\)/.test(ua)
+      || q.indexOf('appinventor=1') >= 0
+      || typeof window.AppInventor !== 'undefined';
+  }
+
+  function hasAppInventorBridge(){
+    return !!(window.AppInventor
+      && (typeof window.AppInventor.setWebViewString === 'function'
+        || typeof window.AppInventor.getWebViewString === 'function'));
+  }
+
+  function pickPhoto(kind){
+    const hint = document.getElementById('photoHint');
+    const msg = kind === 'camera' ? 'NEED_CAMERA' : 'NEED_GALLERY';
+    let sentToApp = false;
+
+    // 1) App Inventor APK/Companion → 네이티브로 요청 (여기가 APK에서 유일한 정상 경로)
+    try{
+      if(hasAppInventorBridge()){
+        window.AppInventor.setWebViewString(msg);
+        sentToApp = true;
+        hint.textContent = kind === 'camera'
+          ? '앱 카메라 요청을 보냈어요…'
+          : '앱 앨범 요청을 보냈어요…';
+      }
+    }catch(e){}
+
+    // 2) 브라우저(PC/크롬) 폴백
+    if(!isAppWebView() || !sentToApp){
+      const input = document.getElementById(kind === 'camera' ? 'inputCamera' : 'inputGallery');
+      try{ if(input) input.click(); }catch(e2){}
+    }
+
+    // 3) APK인데 블록이 없으면 안내
+    if(isAppWebView() || location.search.indexOf('appinventor=1') >= 0){
+      setTimeout(function(){
+        const preview = document.getElementById('photoPreview');
+        const gotPhoto = preview && preview.style.display === 'block' && preview.src;
+        if(gotPhoto) return;
+        if(!hasAppInventorBridge()){
+          hint.innerHTML = '⚠️ 이 화면은 App Inventor 웹뷰입니다. HTML만으로는 앨범/카메라가 열리지 않아요.<br>아래 App Inventor 블록을 꼭 연결하세요.';
+          alert('App Inventor에서 ImagePicker/Camera 블록을 연결해야 앨범·촬영이 됩니다.\n(HTML 파일 선택은 웹뷰에서 막혀 있습니다.)');
+          return;
+        }
+        hint.innerHTML = '아직 사진이 안 왔어요. App Inventor에서 WebViewString이 <b>' + msg + '</b> 일 때 ImagePicker/Camera를 여는 블록이 있는지 확인하세요.';
+      }, 1800);
+    }
+  }
+
+  // App Inventor: setMissionPhoto(...) 또는 WebViewString = PHOTO:...
+  function setMissionPhoto(dataUrl){
+    if(!dataUrl || typeof dataUrl !== 'string'){
+      document.getElementById('photoHint').textContent = '사진 데이터가 비어 있어요.';
+      return false;
+    }
+    dataUrl = String(dataUrl).replace(/^PHOTO:/i, '').replace(/\s+/g, '');
+    if(!dataUrl){
+      document.getElementById('photoHint').textContent = '사진 데이터가 비어 있어요.';
+      return false;
+    }
+    if(dataUrl.indexOf('data:') !== 0 && dataUrl.indexOf('http') !== 0 && dataUrl.indexOf('file:') !== 0){
+      dataUrl = 'data:image/jpeg;base64,' + dataUrl;
+    }
+    mode = 'photo';
+    document.getElementById('screenList').classList.remove('active');
+    document.getElementById('screenChoice').classList.add('active');
+    document.getElementById('nameInputWrap').style.display = 'none';
+    document.getElementById('photoInputWrap').style.display = 'block';
+    document.getElementById('btnName').classList.remove('selected');
+    document.getElementById('btnPhoto').classList.add('selected');
+    applyPhotoDataUrl(dataUrl);
+    document.getElementById('photoHint').textContent = '사진이 준비되었어요!';
+    return true;
+  }
+  window.setMissionPhoto = setMissionPhoto;
+  window.receiveMissionPhoto = setMissionPhoto;
+
+  function applyPhotoDataUrl(dataUrl){
+    const img = document.getElementById('photoPreview');
+    const hint = document.getElementById('photoHint');
+    img.onload = function(){
+      hint.textContent = '사진이 준비되었어요!';
+      checkReady();
+    };
+    img.onerror = function(){
+      hint.textContent = '사진 표시에 실패했어요. Base64 전달 방식을 확인해 주세요.';
+      checkReady();
+    };
+    img.style.display = 'block';
+    img.src = dataUrl;
+    checkReady();
+  }
+
+  function onPhotoSelected(e){
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev){ applyPhotoDataUrl(ev.target.result); };
+    reader.onerror = function(){
+      alert('사진을 불러오지 못했어요. 다른 사진으로 다시 시도해 주세요.');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  // App Inventor → 웹: WebViewString = PHOTO:... (RunJavaScript보다 안정적)
+  let lastAiPhotoString = '';
+  setInterval(function(){
+    try{
+      if(!window.AppInventor || typeof window.AppInventor.getWebViewString !== 'function') return;
+      const s = window.AppInventor.getWebViewString() || '';
+      if(!s || s === lastAiPhotoString) return;
+      if(s.indexOf('NEED_') === 0) return;
+      if(s.indexOf('PHOTO:') === 0){
+        lastAiPhotoString = s;
+        const payload = s.slice(6);
+        document.getElementById('photoHint').textContent = '사진 수신함 (' + payload.length + '자). 표시 중…';
+        if(payload.length < 100){
+          document.getElementById('photoHint').textContent = '사진 데이터가 너무 짧아요 (' + payload.length + '자). Base64 변환/전달을 확인하세요.';
+          return;
+        }
+        setMissionPhoto(payload);
+        try{ window.AppInventor.setWebViewString(''); }catch(e){}
+      } else if(s.indexOf('data:image') === 0){
+        lastAiPhotoString = s;
+        document.getElementById('photoHint').textContent = '사진 수신함 (' + s.length + '자). 표시 중…';
+        setMissionPhoto(s);
+        try{ window.AppInventor.setWebViewString(''); }catch(e){}
+      }
+    }catch(e){}
+  }, 250);
+
+  function checkReady(){
+    let ready = false;
+    if(mode === 'name'){
+      ready = document.getElementById('nameInput').value.trim().length > 0;
+    } else if(mode === 'photo'){
+      const img = document.getElementById('photoPreview');
+      ready = !!(img && img.style.display === 'block' && img.src && img.src.indexOf('data:image') === 0);
+    }
+    const btn = document.getElementById('goCertBtn');
+    btn.disabled = !ready;
+    btn.classList.toggle('ready', ready);
+  }
+
+  function buildConfetti(){
+    const box = document.getElementById('confettiEl');
+    box.innerHTML = '';
+    const colors = ['#FFC94A','#4CAF7D','#E85D4A','#4A90E8'];
+    for(let k=0;k<40;k++){
+      const s = document.createElement('span');
+      s.style.left = Math.random()*100 + '%';
+      s.style.animationDelay = (Math.random()*1.5) + 's';
+      s.style.background = colors[k % colors.length];
+      box.appendChild(s);
+    }
+  }
+
+  function showCertificate(){
+    document.getElementById('certOverlay').classList.add('active');
+    buildConfetti();
+    playCertFanfare();
+    drawCertificate();
+  }
+
+  function drawCertificate(){
+    const canvas = document.getElementById('certCanvas');
+    const ctx = canvas.getContext('2d');
+    const bg = new Image();
+
+    bg.onload = function(){
+      canvas.width = bg.naturalWidth;
+      canvas.height = bg.naturalHeight;
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+      // 가로 5칸 × 세로 4칸 중 2행 4열 칸의 중앙
+      const COLS = 5, ROWS = 4;
+      const col = 4, row = 2; // 1부터 시작
+      const cellW = canvas.width / COLS;
+      const cellH = canvas.height / ROWS;
+      const cx = (col - 0.5) * cellW;
+      const cy = (row - 0.5) * cellH;
+
+      if(mode === 'name'){
+        const nameText = document.getElementById('nameInput').value.trim();
+        let fontSize = Math.round(cellH * 0.26);
+        ctx.fillStyle = '#2E7D53';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold ' + fontSize + 'px "Pretendard","Noto Sans KR",sans-serif';
+        while(ctx.measureText(nameText).width > cellW * 0.82 && fontSize > 12){
+          fontSize -= 1;
+          ctx.font = 'bold ' + fontSize + 'px "Pretendard","Noto Sans KR",sans-serif';
+        }
+        ctx.fillText(nameText, cx, cy);
+        finishCertRender(canvas);
+      } else if(mode === 'photo'){
+        const photo = new Image();
+        photo.onload = function(){
+          // 칸을 꽉 채우지 않고 약 58% 크기로 표시
+          const r = Math.min(cellW, cellH) * 0.29;
+          const size = r * 2;
+          const iw = photo.naturalWidth || photo.width;
+          const ih = photo.naturalHeight || photo.height;
+          // 미리보기(object-fit:cover)처럼 비율 유지하며 중앙 크롭
+          const side = Math.min(iw, ih);
+          const sx = (iw - side) / 2;
+          const sy = (ih - side) / 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI*2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(photo, sx, sy, side, side, cx-r, cy-r, size, size);
+          ctx.restore();
+          ctx.lineWidth = Math.max(3, Math.round(r * 0.08));
+          ctx.strokeStyle = '#FFC94A';
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI*2);
+          ctx.stroke();
+          finishCertRender(canvas);
+        };
+        photo.src = document.getElementById('photoPreview').src;
+      } else {
+        finishCertRender(canvas);
+      }
+    };
+    bg.onerror = function(){
+      document.getElementById('saveHint').textContent = '상장 이미지를 불러오지 못했어요. image/상장.png 경로를 확인해주세요.';
+    };
+    bg.src = 'image/상장.png?v=' + Date.now();
+  }
+
+  function finishCertRender(canvas){
+    document.getElementById('certFlatImg').src = canvas.toDataURL('image/png');
+  }
+
+  function closeCert(){
+    document.getElementById('certOverlay').classList.remove('active');
+  }
+
+  function restartApp(){
+    if(currentAudio){
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
+    document.getElementById('certOverlay').classList.remove('active');
+    document.getElementById('screenChoice').classList.remove('active');
+    document.getElementById('screenList').classList.add('active');
+
+    mode = null;
+    ['card1','card2','card3'].forEach(cid=>{
+      const card = document.getElementById(cid);
+      card.classList.remove('checked');
+      card.querySelector('input').checked = false;
+    });
+    const completeBtn = document.getElementById('completeBtn');
+    completeBtn.disabled = true;
+    completeBtn.classList.remove('ready');
+    completeBtn.textContent = '모든 활동을 한 후 체크하세요!';
+
+    document.getElementById('btnName').classList.remove('selected');
+    document.getElementById('btnPhoto').classList.remove('selected');
+    document.getElementById('nameInputWrap').style.display = 'none';
+    document.getElementById('photoInputWrap').style.display = 'none';
+    document.getElementById('nameInput').value = '';
+    const gallery = document.getElementById('inputGallery');
+    const camera = document.getElementById('inputCamera');
+    if(gallery) gallery.value = '';
+    if(camera) camera.value = '';
+    const preview = document.getElementById('photoPreview');
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+    const goBtn = document.getElementById('goCertBtn');
+    goBtn.disabled = true;
+    goBtn.classList.remove('ready');
+    document.getElementById('certFlatImg').removeAttribute('src');
+    document.getElementById('saveHint').textContent = '이미지를 길게 눌러 갤러리에 저장하세요 📥';
+  }
+</script>
+</body>
+</html>
